@@ -7,6 +7,8 @@ def download_mediapipe_weights():
 
     filename = "pose_landmarker_lite.task"
 
+    print((ROOT_DIR / filename))
+
     if (ROOT_DIR / filename).exists():
         print("Model weights already downloaded...")
         return
