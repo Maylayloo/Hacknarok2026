@@ -23,7 +23,7 @@ class MediaPipeModel(PoseModel):
 
     def __init__(self):
         base_options = python.BaseOptions(model_asset_path='pose_landmarker_lite.task')
-        hand_options = HandLandmarkerOptions(base_options, running_mode=vision.RunningMode.IMAGE, num_hands=1,
+        hand_options = HandLandmarkerOptions(base_options, running_mode=vision.RunningMode.IMAGE, num_hands=2,
                                              min_hand_detection_confidence=0.5,
                                              min_hand_presence_confidence=0.5,
                                              min_tracking_confidence=0.5
