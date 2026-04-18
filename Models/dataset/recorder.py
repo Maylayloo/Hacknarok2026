@@ -65,6 +65,7 @@ class PoseApp:
         "SWIPE_DOWN",
         "FIST",
         "OPEN_PALM",
+        "IDLE",
     ]
 
     def __init__(self, root, model: PoseModel):
