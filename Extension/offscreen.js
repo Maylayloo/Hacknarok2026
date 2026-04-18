@@ -1,17 +1,20 @@
-// 1. BEZPOŚREDNIE IMPORTY (Działa od razu w przeglądarce, bez bundlerów!)
+// 1. BEZPOŚREDNIE IMPORTY
+// UWAGA: Importujemy TYLKO MediaPipe. ONNX (ort) jest ładowany z offscreen.html!
 import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
-import * as ort from "./libs/ort.bundle.min.js";
+
 // ==========================================
 // KONFIGURACJA
 // ==========================================
+// ort jest dostępne globalnie
 ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
+ort.env.wasm.numThreads = 1;
 
 const GESTURE_CONFIG = {
-    BUFFER_SIZE: 30,         // Twój model oczekuje 30 klatek
-    INFERENCE_INTERVAL: 10,  // Odpalamy model co 10 klatek (dla wydajności)
-    CONFIDENCE_THRESHOLD: 0.85 // Minimalna pewność modelu (85%)
+    BUFFER_SIZE: 30,
+    INFERENCE_INTERVAL: 10,
+    CONFIDENCE_THRESHOLD: 0.85
 };
-const CLASS_NAMES = {0: "PALM_OPEN", 1: "SWIPE_LEFT"}; // Zaktualizuj, jeśli masz więcej klas
+const CLASS_NAMES = {0: "PALM_OPEN", 1: "SWIPE_LEFT"};
 
 // Zmienne globalne
 let handLandmarker = null;
@@ -25,30 +28,69 @@ let onnxSession = null;
 // ==========================================
 // INICJALIZACJA WSZYSTKIEGO
 // ==========================================
+// ==========================================
+// INICJALIZACJA WSZYSTKIEGO (Z DEBUGGEREM)
+// ==========================================
 async function initAll() {
-    console.log("Ładowanie modelu ONNX...");
-    const modelUrl = chrome.runtime.getURL("models/gesture_model.onnx");
-    onnxSession = await ort.InferenceSession.create(modelUrl, { executionProviders: ['wasm'] });
-    console.log("Model ONNX załadowany!");
+    console.log("--- START INICJALIZACJI ---");
 
-    console.log("Ładowanie MediaPipe...");
-    // Podajemy ścieżkę do folderu z plikami vision_wasm_internal
-    const wasmPath = chrome.runtime.getURL("libs/");
-    const vision = await FilesetResolver.forVisionTasks(wasmPath);
+    try {
+        console.log("1. Ładowanie modelu ONNX i wag...");
+        const modelUrl = chrome.runtime.getURL("models/gesture_model.onnx");
+        console.log("URL modelu:", modelUrl);
 
-    // Ładujemy lokalny model z folderu models!
-    const taskPath = chrome.runtime.getURL("models/hand_landmarker.task");
+        const modelResponse = await fetch(modelUrl);
+        console.log("Status odpowiedzi:", modelResponse.status);
+        console.log("Typ zawartości:", modelResponse.headers.get("content-type"));
 
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-            modelAssetPath: taskPath,
-            delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        numHands: 1
-    });
-    console.log("MediaPipe gotowy!");
+        if (!modelResponse.ok) {
+            throw new Error(`Fetch failed: ${modelResponse.status} ${modelResponse.statusText}`);
+        }
 
+        const modelBuffer = await modelResponse.arrayBuffer();
+        console.log("Rozmiar bufora:", modelBuffer.byteLength, "bajtów");
+
+        // Sprawdź magiczny numer ONNX (powinien zaczynać się od "ONNX")
+        const view = new Uint8Array(modelBuffer);
+        const header = String.fromCharCode(...view.slice(0, 4));
+        console.log("Nagłówek pliku:", header === "ONNX" ? "✅ Prawidłowy ONNX" : "❌ Nie ONNX!");
+
+        onnxSession = await ort.InferenceSession.create(view, {
+            executionProviders: ['wasm'],
+            wasmPaths: chrome.runtime.getURL("libs/")
+        });
+        console.log("✅ Model ONNX załadowany!");
+    } catch (e) {
+        console.error("❌ BŁĄD ONNX!", e);
+    console.error("Wiadomość:", e.message || "brak");
+    console.error("Stack:", e.stack || "brak");
+    return;
+    }
+
+
+    // 3. TEST MODELU DŁONI (.task)
+    try {
+        console.log("3. Pobieranie pliku hand_landmarker.task...");
+        const taskPath = chrome.runtime.getURL("models/hand_landmarker.task");
+        const response = await fetch(taskPath);
+        const buffer = await response.arrayBuffer();
+
+        console.log("4. Inicjalizacja śledzenia dłoni...");
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetBuffer: new Uint8Array(buffer),
+                delegate: "CPU" // Używamy CPU dla stabilności w tle
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+        });
+        console.log("✅ MediaPipe całkowicie gotowy!");
+    } catch (e) {
+        console.error("❌ BŁĄD MODELU DŁONI! (Czy hand_landmarker.task nie jest przypadkiem plikiem HTML?)", e);
+        return;
+    }
+
+    // Jeśli doszliśmy tutaj, wszystko działa!
     startWebcam();
 }
 
@@ -67,7 +109,6 @@ async function predictWebcam() {
     if (webcam.currentTime !== lastVideoTime) {
         lastVideoTime = webcam.currentTime;
 
-        // Zdobądź punkty z obrazu
         const results = handLandmarker.detectForVideo(webcam, startTimeMs);
 
         if (results.landmarks && results.landmarks.length > 0) {
@@ -83,16 +124,13 @@ async function predictWebcam() {
 async function handleNewFrame(mediaPipeLandmarks) {
     framesProcessed++;
 
-    // Zapisz [x, y] dla 21 punktów z pierwszej dłoni
     const frameKeypoints = mediaPipeLandmarks[0].map(lm => [lm.x, lm.y]);
     keypointsBuffer.push(frameKeypoints);
 
-    // Pilnuj rozmiaru bufora (zawsze 30 klatek)
     if (keypointsBuffer.length > GESTURE_CONFIG.BUFFER_SIZE) {
         keypointsBuffer.shift();
     }
 
-    // Warunki odpalenia modelu
     if (
         keypointsBuffer.length === GESTURE_CONFIG.BUFFER_SIZE &&
         framesProcessed % GESTURE_CONFIG.INFERENCE_INTERVAL === 0 &&
@@ -114,7 +152,6 @@ async function handleNewFrame(mediaPipeLandmarks) {
 async function predictAction(bufferToProcess) {
     if (!onnxSession) return;
 
-    // Normalizacja (odjęcie pierwszego punktu z pierwszej klatki)
     const referencePoint = bufferToProcess[0][0];
     const refX = referencePoint[0];
     const refY = referencePoint[1];
@@ -132,26 +169,40 @@ async function predictAction(bufferToProcess) {
     const tensorData = new Float32Array(flatNormalizedData);
     const inputTensor = new ort.Tensor('float32', tensorData, [1, GESTURE_CONFIG.BUFFER_SIZE, 42]);
 
-    // Odpal ONNX
     const results = await onnxSession.run({ 'input_sequence': inputTensor });
     const outputTensor = results['class_probabilities'].data;
 
-    // Szukamy największego prawdopodobieństwa
+    // --- FUNKCJA SOFTMAX (przywrócona!) ---
+    let maxLogit = -Infinity;
+    for (let i = 0; i < outputTensor.length; i++) {
+        if (outputTensor[i] > maxLogit) maxLogit = outputTensor[i];
+    }
+
+    let sumExp = 0;
+    let probabilities = new Float32Array(outputTensor.length);
+    for (let i = 0; i < outputTensor.length; i++) {
+        probabilities[i] = Math.exp(outputTensor[i] - maxLogit);
+        sumExp += probabilities[i];
+    }
+
+    for (let i = 0; i < probabilities.length; i++) {
+        probabilities[i] /= sumExp;
+    }
+    // ---------------------------------------
+
     let maxProb = -1;
     let predictedIdx = -1;
-    for (let i = 0; i < outputTensor.length; i++) {
-        if (outputTensor[i] > maxProb) {
-            maxProb = outputTensor[i];
+    for (let i = 0; i < probabilities.length; i++) {
+        if (probabilities[i] > maxProb) {
+            maxProb = probabilities[i];
             predictedIdx = i;
         }
     }
 
-    // Jeśli jesteśmy pewni wyślij do przeglądarki!
     if (maxProb >= GESTURE_CONFIG.CONFIDENCE_THRESHOLD) {
         const actionLabel = CLASS_NAMES[predictedIdx];
         console.log(`🎯 Wykryto: ${actionLabel} (${(maxProb * 100).toFixed(1)}%)`);
 
-        // Komunikacja z background.js
         chrome.runtime.sendMessage({
             type: "GESTURE_COMMAND",
             action: actionLabel
