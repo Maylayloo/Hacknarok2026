@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Hand Driven Internet",
+  "version": "0.1",
+  "description": "Gestures, camera, life quality",
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["scripts/global.js"]
+    },
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["scripts/youtube.js"]
+    }
+  ]
+}
