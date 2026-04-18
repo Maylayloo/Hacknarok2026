@@ -10,8 +10,8 @@
       "js": ["scripts/global.js"]
     },
     {
-      "matches": ["*://*.youtube.com/*"],
-      "js": ["scripts/youtube.js"]
+      "matches": ["*://*.youtube.com/watch*"],
+      "js": ["scripts/youtube/video.js"]
     }
   ]
 }
