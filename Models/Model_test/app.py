@@ -5,6 +5,11 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe.tasks.python.vision.hand_landmarker import HandLandmarkerOptions
+
+from .download_mediapipe import download_mediapipe_weights
 
 
 class PoseModel(abc.ABC):
@@ -17,23 +22,30 @@ class PoseModel(abc.ABC):
 class MediaPipeModel(PoseModel):
 
     def __init__(self):
-        self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            enable_segmentation=False,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
+        base_options = python.BaseOptions(model_asset_path='pose_landmarker_lite.task')
+        hand_options = HandLandmarkerOptions(base_options, running_mode=vision.RunningMode.IMAGE, num_hands=1,
+                                             min_hand_detection_confidence=0.5,
+                                             min_hand_presence_confidence=0.5,
+                                             min_tracking_confidence=0.5
+                                             )
+        download_mediapipe_weights()
+        self.detector = vision.HandLandmarker.create_from_options(hand_options)
 
     def predict(self, image: np.ndarray) -> list:
-        results = self.pose.process(image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+
+        detection_result = self.detector.detect(mp_image)
+
         keypoints = []
-        if results.pose_landmarks:
+
+        if detection_result.hand_landmarks:
             h, w, _ = image.shape
-            for landmark in results.pose_landmarks.landmark:
-                cx, cy = int(landmark.x * w), int(landmark.y * h)
-                keypoints.append((cx, cy))
+
+            for hand in detection_result.hand_landmarks:
+                for landmark in hand:
+                    cx, cy = int(landmark.x * w), int(landmark.y * h)
+                    keypoints.append((cx, cy))
+
         return keypoints
 
 
