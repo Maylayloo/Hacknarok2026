@@ -78,7 +78,6 @@ class PoseApp:
         tk.Label(self.control_frame, text="Label:").pack(side=tk.LEFT)
 
         self.label_var = tk.StringVar()
-
         self.label_dropdown = ttk.Combobox(
             self.control_frame,
             textvariable=self.label_var,
@@ -90,12 +89,11 @@ class PoseApp:
 
         if self.AVAILABLE_LABELS:
             self.label_dropdown.current(0)
-        # ----------------------------------
 
         self.record_btn = tk.Button(self.control_frame, text="Record (35 frames)", command=self.start_recording)
         self.record_btn.pack(side=tk.LEFT, padx=5)
 
-        self.status_label = tk.Label(self.control_frame, text="Status: Oczekiwanie", fg="black")
+        self.status_label = tk.Label(self.control_frame, text="Status: Waiting", fg="black")
         self.status_label.pack(side=tk.LEFT, padx=10)
 
         self.video_label = Label(root)
@@ -116,7 +114,7 @@ class PoseApp:
 
         self.current_label = self.label_var.get().strip()
         if not self.current_label:
-            self.status_label.config(text="Wybierz etykietę!", fg="red")
+            self.status_label.config(text="Select a label!", fg="red")
             return
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -127,13 +125,13 @@ class PoseApp:
         self.raw_frames_buffer = []
         self.is_recording = True
 
-        self.status_label.config(text="Nagrywanie (37 klatek)...", fg="red")
+        self.status_label.config(text="Recording (37 frames)...", fg="red")
         self.record_btn.config(state=tk.DISABLED)
         self.label_dropdown.config(state=tk.DISABLED)
 
     def stop_recording(self):
         self.is_recording = False
-        self.status_label.config(text="Przetwarzanie i zapis...", fg="blue")
+        self.status_label.config(text="Processing and saving...", fg="blue")
 
         frames_to_process = self.raw_frames_buffer[2: 37]
 
@@ -145,7 +143,7 @@ class PoseApp:
 
         if not reference_point:
             reference_point = (0, 0)
-            print("Ostrzeżenie: Nie wykryto dłoni na żadnej klatce!")
+            print("Warning: No hand detected in any frame!")
 
         ref_x, ref_y = reference_point
         recording_data = []
@@ -153,6 +151,10 @@ class PoseApp:
         for i, (frame, keypoints) in enumerate(frames_to_process):
             filename = f"frame_{i:04d}.jpg"
             filepath = os.path.join(self.session_dir, filename)
+
+            for x, y in keypoints:
+                cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
+
             cv2.imwrite(filepath, frame)
 
             normalized_keypoints = []
@@ -176,10 +178,10 @@ class PoseApp:
         with open(json_path, "w", encoding="utf-8") as f:
             f.write(json_str)
 
-        self.status_label.config(text=f"Zapisano 35 klatek!", fg="green")
+        self.status_label.config(text=f"Saved 35 frames!", fg="green")
         self.record_btn.config(state=tk.NORMAL)
-        self.label_dropdown.config(state="readonly")  # Odblokowujemy listę po nagraniu
-        print(f"Zakończono. Pliki zapisano w: {self.session_dir}")
+        self.label_dropdown.config(state="readonly")
+        print(f"Finished. Files saved in: {self.session_dir}")
 
     def update_frame(self):
         ret, frame = self.cap.read()
