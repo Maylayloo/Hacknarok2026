@@ -176,7 +176,16 @@ const testActions = [
     }}
 
 ];
-// yt-touch-feedback-shape
-testActions.forEach((action, index) => {
-    setTimeout(action, index * 600);
+// Kod w pliku video.js na samym dole:
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "GESTURE_COMMAND") {
+        console.log("Wideo.js odebrało gest: ", request.action);
+
+        if (request.action === "PALM_OPEN") {
+            startStopVideo();
+        } else if (request.action === "SWIPE_LEFT") {
+            theaterMode();
+        }
+        // ... i tak dalej
+    }
 });

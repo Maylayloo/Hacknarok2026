@@ -1,10 +1,11 @@
 // 1. BEZPOŚREDNIE IMPORTY (Działa od razu w przeglądarce, bez bundlerów!)
-import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/vision_bundle.js";
-import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.bundle.min.mjs";
-
+import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
+import * as ort from "./libs/ort.bundle.min.js";
 // ==========================================
 // KONFIGURACJA
 // ==========================================
+ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
+
 const GESTURE_CONFIG = {
     BUFFER_SIZE: 30,         // Twój model oczekuje 30 klatek
     INFERENCE_INTERVAL: 10,  // Odpalamy model co 10 klatek (dla wydajności)
@@ -26,18 +27,21 @@ let onnxSession = null;
 // ==========================================
 async function initAll() {
     console.log("Ładowanie modelu ONNX...");
-    // Zakładam, że model leży w Extension/models/gesture_model.onnx
     const modelUrl = chrome.runtime.getURL("models/gesture_model.onnx");
     onnxSession = await ort.InferenceSession.create(modelUrl, { executionProviders: ['wasm'] });
     console.log("Model ONNX załadowany!");
 
     console.log("Ładowanie MediaPipe...");
-    const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-    );
+    // Podajemy ścieżkę do folderu z plikami vision_wasm_internal
+    const wasmPath = chrome.runtime.getURL("libs/");
+    const vision = await FilesetResolver.forVisionTasks(wasmPath);
+
+    // Ładujemy lokalny model z folderu models!
+    const taskPath = chrome.runtime.getURL("models/hand_landmarker.task");
+
     handLandmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            modelAssetPath: taskPath,
             delegate: "GPU"
         },
         runningMode: "VIDEO",
