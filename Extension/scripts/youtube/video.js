@@ -1,30 +1,31 @@
-console.log("you've entered YOUTUBE")
-let active_item = 0;
+const sections = [
+    getVideoContainer,
+    getRelatedSection,
+    getCommentsSection,
+];
+
+let active_item = -1;
 let highlighted_item = null;
-let highlighted_section = null;
+let current_section = 0
 
 const getVideo = () => {
     return document.querySelector("video");
 }
 
-const getPlayButton = () => {
-    return document.querySelector(".ytp-play-button");
-}
-const getVideoContainer = () => {
+function getVideoContainer() {
     return document.querySelector(".html5-video-container");
 }
-const getFullScreenButton = () => {
-    return document.querySelector(".ytp-fullscreen-button");
-}
-const getCommentsSection = () => {
+
+function getCommentsSection() {
     return document.querySelector(".ytd-comments");
 }
+
 const highlightVideo = () => {
     const videoContainer = getVideoContainer();
     videoContainer.style.border = "2px solid yellow";
     videoContainer.style.padding = "1rem";
 }
-const getRelatedSection = () => {
+function getRelatedSection() {
     return document.querySelector("ytd-watch-next-secondary-results-renderer #contents");
 }
 function startStopVideo() {
@@ -39,6 +40,44 @@ function startStopVideo() {
     });
 
     document.dispatchEvent(event);
+}
+function goToNextSection() {
+    highlight(sections[current_section](), 'reset');
+
+    current_section++;
+
+    if (current_section >= sections.length) {
+        current_section = 0;
+    }
+
+    active_item = -1;
+    const targetSection = sections[current_section]();
+
+    if (!targetSection) console.warn("smth's wrong bro");
+
+    targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    highlight(targetSection, 'section');
+}
+function goToPreviousSection() {
+    highlight(sections[current_section](), 'reset');
+
+    current_section--;
+
+    if (current_section < 0) {
+        current_section = sections.length - 1;
+    }
+
+    active_item = -1;
+
+    const targetSection = sections[current_section]();
+
+    if (!targetSection) {
+        console.warn("smth's wrong bro");
+        return;
+    }
+
+    targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    highlight(targetSection, 'section');
 }
 
 function theaterMode() {
@@ -96,9 +135,13 @@ function highlight(element, type) {
         element.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
         element.style.padding = "1rem";
         element.style.border = "1px solid rgba(255, 255, 255, 0.3)";
-    } else {
+    }
+    else if (type === 'section') {
         element.style.border = "3px solid white";
     }
+    // else {
+    //     element.style.border = "3px solid white";
+    // }
 
 }
 
@@ -140,6 +183,39 @@ function scrollToNextChild(section) {
         });
     }
 }
+
+function scrollToPreviousChild(section) {
+    const children = Array.from(section.children).filter(el => el.offsetHeight > 0);
+
+    active_item--;
+
+    if (active_item < 0) {
+        active_item = children.length - 1;
+
+        const lastChild = children[active_item];
+        lastChild.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        highlight(lastChild, 'related_video');
+        highlight(children[0], 'reset');
+        return;
+    }
+
+    const prev = children[active_item];
+    highlighted_item = prev;
+
+    highlight(prev, 'related_video');
+    highlight(children[active_item + 1], 'reset');
+
+    const rect = prev.getBoundingClientRect();
+
+    if (rect.top < 0 || rect.top < window.innerHeight * 0.1) {
+        prev.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }
+}
+
 const testActions = [
     () => { theaterMode(); },
     () => startStopVideo(),
@@ -160,20 +236,30 @@ const testActions = [
         block: 'start'
     });
     },
-    () => highlight(getRelatedSection(), 'asd'),
+    () => goToNextSection(),
+    () => goToNextSection(),
+    () => goToNextSection(),
+    () => goToNextSection(),
+    () => goToPreviousSection(),
+    () => goToPreviousSection(),
+    () => goToPreviousSection(),
+    () => goToNextSection(),
+    () => goToNextSection(),
+    () => goToNextSection(),
     () => window.scrollBy({ top: -300, behavior: 'smooth' }),
     () => {scrollToNextChild(getRelatedSection());},
     () => {scrollToNextChild(getRelatedSection());},
     () => {scrollToNextChild(getRelatedSection());},
+    () => {scrollToPreviousChild(getRelatedSection());},
+    () => {scrollToPreviousChild(getRelatedSection());},
+    () => {scrollToPreviousChild(getRelatedSection());},
     () => {scrollToNextChild(getRelatedSection());},
     () => {scrollToNextChild(getRelatedSection());},
     () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {{
-        const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
-        clickableVideo.click();
-    }}
+    // () => {{
+    //     const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
+    //     clickableVideo.click();
+    // }}
 
 ];
 // yt-touch-feedback-shape
