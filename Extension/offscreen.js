@@ -1,10 +1,7 @@
-// 1. BEZPOŚREDNIE IMPORTY (Działa od razu w przeglądarce, bez bundlerów!)
-import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/vision_bundle.js";
-import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.bundle.min.mjs";
+import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
 
-// ==========================================
-// KONFIGURACJA
-// ==========================================
+ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
+
 const GESTURE_CONFIG = {
     BUFFER_SIZE: 30,         // Twój model oczekuje 30 klatek
     INFERENCE_INTERVAL: 10,  // Odpalamy model co 10 klatek (dla wydajności)
@@ -25,40 +22,85 @@ let onnxSession = null;
 // INICJALIZACJA WSZYSTKIEGO
 // ==========================================
 async function initAll() {
-    console.log("Ładowanie modelu ONNX...");
-    // Zakładam, że model leży w Extension/models/gesture_model.onnx
-    const modelUrl = chrome.runtime.getURL("models/gesture_model.onnx");
-    onnxSession = await ort.InferenceSession.create(modelUrl, { executionProviders: ['wasm'] });
-    console.log("Model ONNX załadowany!");
+    try {
+        console.log("🚀 Start inicjalizacji...");
 
-    console.log("Ładowanie MediaPipe...");
-    const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-    );
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        numHands: 1
-    });
-    console.log("MediaPipe gotowy!");
+        // 1. Konfiguracja środowiska ONNX
+        // Musimy to ustawić ZANIM stworzymy sesję
 
-    startWebcam();
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.proxy = false;
+        ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
+        ort.env.wasm.simd = false;
+
+        console.log("📦 Pobieranie modelu ONNX z plików rozszerzenia...");
+        const modelUrl = chrome.runtime.getURL("models/gesture_model.ort");
+        const modelResponse = await fetch(modelUrl);
+
+        if (!modelResponse.ok) {
+            throw new Error(`Nie udało się pobrać modelu ONNX: ${modelResponse.statusText}`);
+        }
+
+        const modelBuffer = await modelResponse.arrayBuffer();
+        console.log('skibidi', modelBuffer);
+
+        console.log("🧠 Tworzenie sesji ONNX (InferenceSession)...");
+        onnxSession = await ort.InferenceSession.create(modelBuffer, {
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'all'
+        });
+
+        console.log("Model ONNX załadowany pomyślnie!");
+
+        // 2. Konfiguracja MediaPipe
+        console.log("📸 Inicjalizacja MediaPipe Hand Landmarker...");
+        const wasmPath = chrome.runtime.getURL("libs/");
+        const vision = await FilesetResolver.forVisionTasks(wasmPath);
+        const taskPath = chrome.runtime.getURL("models/hand_landmarker.task");
+
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetPath: taskPath,
+                delegate: "CPU" // Jeśli tu wywali błąd, zmień na "CPU"
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+        });
+        console.log("MediaPipe gotowy!");
+
+        // 3. Start kamery
+        await startWebcam();
+
+    } catch (err) {
+        console.error("Krytyczny błąd w initAll:", err);
+    }
 }
 
 async function startWebcam() {
     webcam = document.getElementById("webcam");
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    webcam.srcObject = stream;
-    webcam.addEventListener("loadeddata", predictWebcam);
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: 640,
+                height: 480
+            }
+        });
+        webcam.srcObject = stream;
+        webcam.onloadedmetadata = () => {
+            webcam.play();
+            predictWebcam();
+        };
+        console.log("Kamera w offscreen g");
+    } catch (err) {
+        console.error("Offscreen Camera Error:", err.name, err.message);
+    }
 }
 
 // ==========================================
 // GŁÓWNA PĘTLA KAMERY
 // ==========================================
 async function predictWebcam() {
+    console.log('dzialam predict')
     let startTimeMs = performance.now();
     if (webcam.currentTime !== lastVideoTime) {
         lastVideoTime = webcam.currentTime;
@@ -66,6 +108,8 @@ async function predictWebcam() {
         // Zdobądź punkty z obrazu
         const results = handLandmarker.detectForVideo(webcam, startTimeMs);
 
+        console.log("landmarks ", results.landmarks);
+        console.log("landmarks length ", results.landmarks.length);
         if (results.landmarks && results.landmarks.length > 0) {
             handleNewFrame(results.landmarks);
         }
@@ -87,7 +131,7 @@ async function handleNewFrame(mediaPipeLandmarks) {
     if (keypointsBuffer.length > GESTURE_CONFIG.BUFFER_SIZE) {
         keypointsBuffer.shift();
     }
-
+    console.log('bufle', keypointsBuffer.length, framesProcessed);
     // Warunki odpalenia modelu
     if (
         keypointsBuffer.length === GESTURE_CONFIG.BUFFER_SIZE &&
@@ -143,6 +187,7 @@ async function predictAction(bufferToProcess) {
     }
 
     // Jeśli jesteśmy pewni wyślij do przeglądarki!
+    console.log("maxprob", maxProb);
     if (maxProb >= GESTURE_CONFIG.CONFIDENCE_THRESHOLD) {
         const actionLabel = CLASS_NAMES[predictedIdx];
         console.log(`🎯 Wykryto: ${actionLabel} (${(maxProb * 100).toFixed(1)}%)`);
