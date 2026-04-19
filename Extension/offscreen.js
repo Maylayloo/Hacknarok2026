@@ -165,7 +165,10 @@ async function handleNewFrame(mediaPipeLandmarks) {
     framesProcessed++;
 
     // Zapisz [x, y] dla 21 punktów z pierwszej dłoni
-    const frameKeypoints = mediaPipeLandmarks[0].map(lm => [lm.x, lm.y]);
+    const frameKeypoints = mediaPipeLandmarks[0].map(lm => [
+        (1-lm.x) * webcam.videoWidth,
+        lm.y * webcam.videoHeight
+    ]);
     keypointsBuffer.push(frameKeypoints);
 
     // Pilnuj rozmiaru bufora (zawsze 30 klatek)
@@ -213,6 +216,7 @@ async function predictAction(bufferToProcess) {
             flatNormalizedData.push(py - globalRefY);
         }
     }
+
 
     const tensorData = new Float32Array(flatNormalizedData);
     const inputTensor = new ort.Tensor('float32', tensorData, [1, GESTURE_CONFIG.BUFFER_SIZE, 42]);

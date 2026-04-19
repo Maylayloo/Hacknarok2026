@@ -31,4 +31,4 @@ def clean_images_from_dataset(dataset_path="dataset-kopia"):
 
 if __name__ == "__main__":
     # Upewnij się dwa razy, że odpalasz to na kopii!
-    clean_images_from_dataset("dataset — kopia")
+    clean_images_from_dataset("dataset")
