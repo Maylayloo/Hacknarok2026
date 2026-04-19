@@ -58,14 +58,23 @@ class MediaPipeModel(PoseModel):
 
 class PoseApp:
     AVAILABLE_LABELS = [
-        "POINT_UP",
-        "SWIPE_RIGHT",
-        "SWIPE_LEFT",
-        "SWIPE_UP",
-        "SWIPE_DOWN",
-        "FIST",
-        "OPEN_PALM",
-        "IDLE",
+        'BIG_LEFT',
+        'BIG_RIGHT',
+        'CINEMA_MODE',
+        'CLICK',
+        'IDLE',
+        'OPEN_PALM',
+        'SITE_LEFT',
+        'SITE_RIGHT',
+        'SCROLL_DOWN',
+        'SCROLL_UP',
+        'SMALL_LEFT',
+        'SMALL_RIGHT',
+        'SWIPE_LEFT',
+        'SWIPE_RIGHT',
+        'VIDEO',
+        'VOLUME_DOWN',
+        'VOLUME_UP'
     ]
 
     def __init__(self, root, model: PoseModel):
