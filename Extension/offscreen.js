@@ -6,8 +6,13 @@ import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
 // KONFIGURACJA
 // ==========================================
 // ort jest dostępne globalnie
-ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
+// 1. Blokujemy WebWorkerów (często używają eval do komunikacji)
 ort.env.wasm.numThreads = 1;
+ort.env.wasm.simd = false;
+ort.env.wasm.proxy = false;
+
+// WYMUSZENIE backendu WASM (to omija eval w testach WebGL)
+ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
 
 const GESTURE_CONFIG = {
     BUFFER_SIZE: 30,
@@ -35,36 +40,26 @@ async function initAll() {
     console.log("--- START INICJALIZACJI ---");
 
     try {
-        console.log("1. Ładowanie modelu ONNX i wag...");
-        const modelUrl = chrome.runtime.getURL("models/gesture_model.onnx");
-        console.log("URL modelu:", modelUrl);
+        console.log("1. Pobieranie zoptymalizowanego modelu ORT...");
+        // Wskazujemy na nowy plik z rozszerzeniem .ort!
+        const modelUrl = chrome.runtime.getURL("models/gesture_model.ort");
+        const response = await fetch(modelUrl);
+        const arrayBuffer = await response.arrayBuffer();
 
-        const modelResponse = await fetch(modelUrl);
-        console.log("Status odpowiedzi:", modelResponse.status);
-        console.log("Typ zawartości:", modelResponse.headers.get("content-type"));
+        // Zostawiamy 1 wątek i wyłączamy proxy (to zawsze dobra praktyka we wtyczkach)
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.proxy = false;
 
-        if (!modelResponse.ok) {
-            throw new Error(`Fetch failed: ${modelResponse.status} ${modelResponse.statusText}`);
-        }
-
-        const modelBuffer = await modelResponse.arrayBuffer();
-        console.log("Rozmiar bufora:", modelBuffer.byteLength, "bajtów");
-
-        // Sprawdź magiczny numer ONNX (powinien zaczynać się od "ONNX")
-        const view = new Uint8Array(modelBuffer);
-        const header = String.fromCharCode(...view.slice(0, 4));
-        console.log("Nagłówek pliku:", header === "ONNX" ? "✅ Prawidłowy ONNX" : "❌ Nie ONNX!");
-
-        onnxSession = await ort.InferenceSession.create(view, {
-            executionProviders: ['wasm'],
-            wasmPaths: chrome.runtime.getURL("libs/")
+        console.log("2. Tworzenie sesji ORT...");
+        // Inicjalizacja z bufora
+        onnxSession = await ort.InferenceSession.create(arrayBuffer, {
+            executionProviders: ['wasm']
         });
-        console.log("✅ Model ONNX załadowany!");
+
+        console.log("✅ SUKCES: Model załadowany!");
     } catch (e) {
-        console.error("❌ BŁĄD ONNX!", e);
-    console.error("Wiadomość:", e.message || "brak");
-    console.error("Stack:", e.stack || "brak");
-    return;
+        console.error("❌ BŁĄD:", e);
+        return;
     }
 
 
