@@ -5,7 +5,8 @@ ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
 const GESTURE_CONFIG = {
     BUFFER_SIZE: 35,         // Twój model oczekuje 30 klatek
     INFERENCE_INTERVAL: 1,  // Odpalamy model co 10 klatek (dla wydajności)
-    CONFIDENCE_THRESHOLD: 0.85 // Minimalna pewność modelu (85%)
+    CONFIDENCE_THRESHOLD: 0.85, // Minimalna pewność modelu (85%)
+    ACTION_COOLDOWN_MS: 1500
 };
 const CLASS_NAMES = {0: 'BIG_LEFT', 1: 'BIG_RIGHT', 2: 'CINEMA_MODE', 3: 'CLICK', 4: 'IDLE', 5: 'POINT_UP', 6: 'OPEN_PALM', 7: 'SITE_LEFT', 8: 'SMALL_LEFT', 9: 'SMALL_RIGHT', 10: 'SWIPE_LEFT', 11: 'SWIPE_RIGHT', 12: 'VIDEO', 13: 'VOLUME_DOWN', 14: 'VOLUME_UP'}; // Zaktualizuj, jeśli masz więcej klas
 
@@ -19,7 +20,24 @@ let isModelRunning = false;
 let onnxSession = null;
 let canvasElement = null;
 let canvasCtx = null;
+let lastActionTimestamp = 0;
 
+
+function clearGestureBuffer() {
+    keypointsBuffer = [];
+    console.log("🧹 Bufor gestów wyczyszczony.");
+}
+
+// Pozwala czyścić bufor z innej części wtyczki (np. z popup.js)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "CLEAR_BUFFER") {
+        clearGestureBuffer();
+        if (message.resetCooldown) {
+            lastActionTimestamp = 0;
+        }
+        sendResponse({ status: "Bufor wyczyszczony" });
+    }
+});
 // ==========================================
 // INICJALIZACJA WSZYSTKIEGO
 // ==========================================
@@ -141,6 +159,9 @@ function drawLandmarks(landmarks) {
 // LOGIKA BUFORA I ONNX
 // ==========================================
 async function handleNewFrame(mediaPipeLandmarks) {
+    if (Date.now() - lastActionTimestamp < GESTURE_CONFIG.ACTION_COOLDOWN_MS) {
+        return;
+    }
     framesProcessed++;
 
     // Zapisz [x, y] dla 21 punktów z pierwszej dłoni
@@ -180,12 +201,16 @@ async function predictAction(bufferToProcess) {
     const refY = referencePoint[1];
 
     let flatNormalizedData = [];
+
+    const globalRefX = bufferToProcess[0][0][0];
+    const globalRefY = bufferToProcess[0][0][1];
+
     for (let frame of bufferToProcess) {
         for (let i = 0; i < 21; i++) {
             let px = frame[i] ? frame[i][0] : 0.0;
             let py = frame[i] ? frame[i][1] : 0.0;
-            flatNormalizedData.push(px - refX);
-            flatNormalizedData.push(py - refY);
+            flatNormalizedData.push(px - globalRefX);
+            flatNormalizedData.push(py - globalRefY);
         }
     }
 
@@ -195,13 +220,28 @@ async function predictAction(bufferToProcess) {
     // Odpal ONNX
     const results = await onnxSession.run({ 'input_sequence': inputTensor });
     const outputTensor = results['class_probabilities'].data;
+    let maxLogit = -Infinity;
+    for (let i = 0; i < outputTensor.length; i++) {
+        if (outputTensor[i] > maxLogit) maxLogit = outputTensor[i];
+    }
+
+    let sumExp = 0;
+    let probabilities = new Float32Array(outputTensor.length);
+    for (let i = 0; i < outputTensor.length; i++) {
+        probabilities[i] = Math.exp(outputTensor[i] - maxLogit);
+        sumExp += probabilities[i];
+    }
+
+    for (let i = 0; i < probabilities.length; i++) {
+        probabilities[i] /= sumExp;
+    }
 
     // Szukamy największego prawdopodobieństwa
     let maxProb = -1;
     let predictedIdx = -1;
-    for (let i = 0; i < outputTensor.length; i++) {
-        if (outputTensor[i] > maxProb) {
-            maxProb = outputTensor[i];
+    for (let i = 0; i < probabilities.length; i++) {
+        if (probabilities[i] > maxProb) {
+            maxProb = probabilities[i];
             predictedIdx = i;
         }
     }
@@ -213,6 +253,9 @@ async function predictAction(bufferToProcess) {
         console.log(`🎯 Wykryto: ${actionLabel} (${(maxProb * 100).toFixed(1)}%)`);
 
         // Komunikacja z background.js
+        lastActionTimestamp = Date.now();
+
+        clearGestureBuffer();
         chrome.runtime.sendMessage({
             type: "GESTURE_COMMAND",
             action: actionLabel
