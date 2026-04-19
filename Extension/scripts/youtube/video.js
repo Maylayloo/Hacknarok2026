@@ -286,10 +286,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         else if (action === "VOLUME_DOWN") {
             volumeDown();
         }
-        else if (action === "BIG_LEFT") {
+        else if (action === "SITE_LEFT") {
             goToPreviousSection();
         }
-        else if (action === "BIG_RIGHT") {
+        else if (action === "SITE_RIGHT") {
             goToNextSection();
         }
         else if (action === "SMALL_LEFT") {
