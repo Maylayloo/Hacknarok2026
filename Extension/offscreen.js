@@ -1,15 +1,21 @@
 import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
 
-ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
-
+// ==========================================
+// KONFIGURACJA
+// ==========================================
 const GESTURE_CONFIG = {
-    BUFFER_SIZE: 35,         // Twój model oczekuje 30 klatek
-    INFERENCE_INTERVAL: 10,  // Odpalamy model co 10 klatek (dla wydajności)
-    CONFIDENCE_THRESHOLD: 0.85 // Minimalna pewność modelu (85%)
+    BUFFER_SIZE: 35,         // Model oczekuje 35 klatek
+    INFERENCE_INTERVAL: 1,   // Odpalamy model co klatkę (gdy bufor jest pełny)
+    CONFIDENCE_THRESHOLD: 0.85, // Minimalna pewność modelu (85%)
+    ACTION_COOLDOWN_MS: 1500 // OPÓŹNIENIE: 1.5 sekundy przerwy po wykryciu gestu
 };
-const CLASS_NAMES = {0: "PALM_OPEN", 1: "SWIPE_LEFT"}; // Zaktualizuj, jeśli masz więcej klas
 
-// Zmienne globalne
+// Pamiętaj, aby upewnić się, że indeksy odpowiadają Twojemu modelowi!
+const CLASS_NAMES = {0: "PALM_OPEN", 1: "SWIPE_LEFT"}; 
+
+// ==========================================
+// ZMIENNE GLOBALNE
+// ==========================================
 let handLandmarker = null;
 let webcam = null;
 let lastVideoTime = -1;
@@ -17,6 +23,24 @@ let keypointsBuffer = [];
 let framesProcessed = 0;
 let isModelRunning = false;
 let onnxSession = null;
+let lastActionTimestamp = 0;
+
+
+function clearGestureBuffer() {
+    keypointsBuffer = [];
+    console.log("🧹 Bufor gestów wyczyszczony.");
+}
+
+// Pozwala czyścić bufor z innej części wtyczki (np. z popup.js)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "CLEAR_BUFFER") {
+        clearGestureBuffer();
+        if (message.resetCooldown) {
+            lastActionTimestamp = 0; 
+        }
+        sendResponse({ status: "Bufor wyczyszczony" });
+    }
+});
 
 // ==========================================
 // INICJALIZACJA WSZYSTKIEGO
@@ -25,15 +49,13 @@ async function initAll() {
     try {
         console.log("🚀 Start inicjalizacji...");
 
-        // 1. Konfiguracja środowiska ONNX
-        // Musimy to ustawić ZANIM stworzymy sesję
-
+        // 1. Konfiguracja ONNX (Zabezpieczenia dla Chrome Extension)
         ort.env.wasm.numThreads = 1;
         ort.env.wasm.proxy = false;
         ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
         ort.env.wasm.simd = false;
 
-        console.log("📦 Pobieranie modelu ONNX z plików rozszerzenia...");
+        console.log("📦 Pobieranie zoptymalizowanego modelu ORT...");
         const modelUrl = chrome.runtime.getURL("models/gesture_model.ort");
         const modelResponse = await fetch(modelUrl);
 
@@ -42,15 +64,13 @@ async function initAll() {
         }
 
         const modelBuffer = await modelResponse.arrayBuffer();
-        console.log('skibidi', modelBuffer);
 
-        console.log("🧠 Tworzenie sesji ONNX (InferenceSession)...");
+        console.log("🧠 Tworzenie sesji ONNX...");
         onnxSession = await ort.InferenceSession.create(modelBuffer, {
             executionProviders: ['wasm'],
             graphOptimizationLevel: 'all'
         });
-
-        console.log("Model ONNX załadowany pomyślnie!");
+        console.log("✅ Model ONNX załadowany pomyślnie!");
 
         // 2. Konfiguracja MediaPipe
         console.log("📸 Inicjalizacja MediaPipe Hand Landmarker...");
@@ -61,18 +81,18 @@ async function initAll() {
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: {
                 modelAssetPath: taskPath,
-                delegate: "CPU" // Jeśli tu wywali błąd, zmień na "CPU"
+                delegate: "CPU" // Tryb CPU jest najbardziej stabilny w tle
             },
             runningMode: "VIDEO",
             numHands: 1
         });
-        console.log("MediaPipe gotowy!");
+        console.log("✅ MediaPipe gotowy!");
 
-        // 3. Start kamery
+        // 3. Start Kamery
         await startWebcam();
 
     } catch (err) {
-        console.error("Krytyczny błąd w initAll:", err);
+        console.error("❌ Krytyczny błąd w initAll:", err);
     }
 }
 
@@ -80,32 +100,24 @@ async function startWebcam() {
     webcam = document.getElementById("webcam");
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: 640,
-                height: 480
-            }
+            video: { width: 640, height: 480 }
         });
         webcam.srcObject = stream;
         webcam.onloadedmetadata = () => {
             webcam.play();
             predictWebcam();
         };
-        console.log("Kamera w offscreen g");
+        console.log("🎥 Kamera w Offscreen gotowa i działa.");
     } catch (err) {
         console.error("Offscreen Camera Error:", err.name, err.message);
     }
 }
 
-// ==========================================
-// GŁÓWNA PĘTLA KAMERY
-// ==========================================
 async function predictWebcam() {
-    console.log('dzialam predict')
     let startTimeMs = performance.now();
     if (webcam.currentTime !== lastVideoTime) {
         lastVideoTime = webcam.currentTime;
 
-        // Zdobądź punkty z obrazu
         const results = handLandmarker.detectForVideo(webcam, startTimeMs);
 
         if (results.landmarks && results.landmarks.length > 0) {
@@ -115,22 +127,19 @@ async function predictWebcam() {
     window.requestAnimationFrame(predictWebcam);
 }
 
-// ==========================================
-// LOGIKA BUFORA I ONNX
-// ==========================================
 async function handleNewFrame(mediaPipeLandmarks) {
-    framesProcessed++;
+    if (Date.now() - lastActionTimestamp < GESTURE_CONFIG.ACTION_COOLDOWN_MS) {
+        return; 
+    }
 
-    // Zapisz [x, y] dla 21 punktów z pierwszej dłoni
+    framesProcessed++;
     const frameKeypoints = mediaPipeLandmarks[0].map(lm => [lm.x, lm.y]);
     keypointsBuffer.push(frameKeypoints);
 
-    // Pilnuj rozmiaru bufora (zawsze 30 klatek)
     if (keypointsBuffer.length > GESTURE_CONFIG.BUFFER_SIZE) {
         keypointsBuffer.shift();
     }
-    // Warunki odpalenia modelu
-    // console.log('warunki', keypointsBuffer.length === GESTURE_CONFIG.BUFFER_SIZE, framesProcessed % GESTURE_CONFIG.INFERENCE_INTERVAL === 0, !isModelRunning)
+    
     if (
         keypointsBuffer.length === GESTURE_CONFIG.BUFFER_SIZE &&
         framesProcessed % GESTURE_CONFIG.INFERENCE_INTERVAL === 0 &&
@@ -152,45 +161,62 @@ async function handleNewFrame(mediaPipeLandmarks) {
 async function predictAction(bufferToProcess) {
     if (!onnxSession) return;
 
-    // Normalizacja (odjęcie pierwszego punktu z pierwszej klatki)
-    const referencePoint = bufferToProcess[0][0];
-    const refX = referencePoint[0];
-    const refY = referencePoint[1];
-
     let flatNormalizedData = [];
+
+    const globalRefX = bufferToProcess[0][0][0];
+    const globalRefY = bufferToProcess[0][0][1];
+
     for (let frame of bufferToProcess) {
         for (let i = 0; i < 21; i++) {
             let px = frame[i] ? frame[i][0] : 0.0;
             let py = frame[i] ? frame[i][1] : 0.0;
-            flatNormalizedData.push(px - refX);
-            flatNormalizedData.push(py - refY);
+            
+            // Odejmujemy nadgarstek z pierwszej klatki od KAŻDEGO punktu
+            flatNormalizedData.push(px - globalRefX);
+            flatNormalizedData.push(py - globalRefY);
         }
     }
 
     const tensorData = new Float32Array(flatNormalizedData);
     const inputTensor = new ort.Tensor('float32', tensorData, [1, GESTURE_CONFIG.BUFFER_SIZE, 42]);
 
-    // Odpal ONNX
     const results = await onnxSession.run({ 'input_sequence': inputTensor });
-    const outputTensor = results['class_probabilities'].data;
+    const outputTensor = results['class_probabilities'].data; // Logity
 
-    // Szukamy największego prawdopodobieństwa
+
+    let maxLogit = -Infinity;
+    for (let i = 0; i < outputTensor.length; i++) {
+        if (outputTensor[i] > maxLogit) maxLogit = outputTensor[i];
+    }
+
+    let sumExp = 0;
+    let probabilities = new Float32Array(outputTensor.length);
+    for (let i = 0; i < outputTensor.length; i++) {
+        probabilities[i] = Math.exp(outputTensor[i] - maxLogit);
+        sumExp += probabilities[i];
+    }
+
+    for (let i = 0; i < probabilities.length; i++) {
+        probabilities[i] /= sumExp;
+    }
+
     let maxProb = -1;
     let predictedIdx = -1;
-    for (let i = 0; i < outputTensor.length; i++) {
-        if (outputTensor[i] > maxProb) {
-            maxProb = outputTensor[i];
+    for (let i = 0; i < probabilities.length; i++) {
+        if (probabilities[i] > maxProb) {
+            maxProb = probabilities[i];
             predictedIdx = i;
         }
     }
 
-    // Jeśli jesteśmy pewni wyślij do przeglądarki!
-    console.log("maxprob", maxProb);
     if (maxProb >= GESTURE_CONFIG.CONFIDENCE_THRESHOLD) {
-        const actionLabel = CLASS_NAMES[predictedIdx];
+        const actionLabel = CLASS_NAMES[predictedIdx] || "UNKNOWN_GESTURE";
         console.log(`🎯 Wykryto: ${actionLabel} (${(maxProb * 100).toFixed(1)}%)`);
 
-        // Komunikacja z background.js
+        lastActionTimestamp = Date.now();
+        
+        clearGestureBuffer();
+
         chrome.runtime.sendMessage({
             type: "GESTURE_COMMAND",
             action: actionLabel
@@ -198,5 +224,4 @@ async function predictAction(bufferToProcess) {
     }
 }
 
-// Start wtyczki!
 initAll();
