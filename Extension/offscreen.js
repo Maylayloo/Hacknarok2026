@@ -3,7 +3,7 @@ import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
 ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
 
 const GESTURE_CONFIG = {
-    BUFFER_SIZE: 30,         // Twój model oczekuje 30 klatek
+    BUFFER_SIZE: 35,         // Twój model oczekuje 30 klatek
     INFERENCE_INTERVAL: 10,  // Odpalamy model co 10 klatek (dla wydajności)
     CONFIDENCE_THRESHOLD: 0.85 // Minimalna pewność modelu (85%)
 };
@@ -108,8 +108,6 @@ async function predictWebcam() {
         // Zdobądź punkty z obrazu
         const results = handLandmarker.detectForVideo(webcam, startTimeMs);
 
-        console.log("landmarks ", results.landmarks);
-        console.log("landmarks length ", results.landmarks.length);
         if (results.landmarks && results.landmarks.length > 0) {
             handleNewFrame(results.landmarks);
         }
@@ -131,8 +129,8 @@ async function handleNewFrame(mediaPipeLandmarks) {
     if (keypointsBuffer.length > GESTURE_CONFIG.BUFFER_SIZE) {
         keypointsBuffer.shift();
     }
-    console.log('bufle', keypointsBuffer.length, framesProcessed);
     // Warunki odpalenia modelu
+    // console.log('warunki', keypointsBuffer.length === GESTURE_CONFIG.BUFFER_SIZE, framesProcessed % GESTURE_CONFIG.INFERENCE_INTERVAL === 0, !isModelRunning)
     if (
         keypointsBuffer.length === GESTURE_CONFIG.BUFFER_SIZE &&
         framesProcessed % GESTURE_CONFIG.INFERENCE_INTERVAL === 0 &&
