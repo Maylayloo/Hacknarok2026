@@ -38,6 +38,10 @@
     {
       "matches": ["<all_urls>"],
       "js": ["scripts/global.js"]
+    },
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["scripts/chatgpt/gpt.js"]
     }
   ]
 }

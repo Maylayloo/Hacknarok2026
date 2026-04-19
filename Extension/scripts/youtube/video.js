@@ -281,17 +281,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             muteVideo();
         }
         else if (action === "VOLUME_UP") {
-            volumeUp();
-        }
-        else if (action === "VOLUME_DOWN") {
-            volumeDown();
-        }
-        else if (action === "SITE_LEFT") {
             goToPreviousSection();
         }
-        else if (action === "SITE_RIGHT") {
+        else if (action === "VOLUME_DOWN") {
             goToNextSection();
         }
+        // else if (action === "SITE_LEFT") {
+        //     goToPreviousSection();
+        // }
+        // else if (action === "SITE_RIGHT") {
+        //     goToNextSection();
+        // }
         else if (action === "SMALL_LEFT") {
             goToPreviousChild(getRelatedSection());
         }
