@@ -8,7 +8,7 @@ const GESTURE_CONFIG = {
     CONFIDENCE_THRESHOLD: 0.85, // Minimalna pewność modelu (85%)
     ACTION_COOLDOWN_MS: 1500
 };
-const CLASS_NAMES = {0: 'BIG_LEFT', 1: 'BIG_RIGHT', 2: 'CINEMA_MODE', 3: 'CLICK', 4: 'IDLE', 5: 'POINT_UP', 6: 'OPEN_PALM', 7: 'SITE_LEFT', 8: 'SMALL_LEFT', 9: 'SMALL_RIGHT', 10: 'SWIPE_LEFT', 11: 'SWIPE_RIGHT', 12: 'VIDEO', 13: 'VOLUME_DOWN', 14: 'VOLUME_UP'}; // Zaktualizuj, jeśli masz więcej klas
+const CLASS_NAMES = {0: 'BIG_LEFT', 1: 'BIG_RIGHT', 2: 'CINEMA_MODE', 3: 'CLICK', 4: 'IDLE', 5: 'OPEN_PALM', 6: 'SITE_LEFT', 7: 'SMALL_LEFT', 8: 'SMALL_RIGHT', 9: 'SWIPE_LEFT', 10: 'SWIPE_RIGHT', 11: 'VIDEO', 12: 'VOLUME_DOWN', 13: 'VOLUME_UP',14:'SITE_RIGHT', 15: 'SCROLL_UP', 16: 'SCROLL_DOWN'}; // Zaktualizuj, jeśli masz więcej klas
 
 // Zmienne globalne
 let handLandmarker = null;
