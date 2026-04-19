@@ -157,7 +157,7 @@ function highlight(element, type) {
 //     const video = getVideo();
 //     video.requestFullscreen();
 // }
-function scrollToNextChild(section) {
+function goToNextChild(section) {
     const children = Array.from(section.children).filter(el => el.offsetHeight > 0);
 
     active_item++;
@@ -184,7 +184,7 @@ function scrollToNextChild(section) {
     }
 }
 
-function scrollToPreviousChild(section) {
+function goToPreviousChild(section) {
     const children = Array.from(section.children).filter(el => el.offsetHeight > 0);
 
     active_item--;
@@ -247,15 +247,15 @@ function scrollToPreviousChild(section) {
 //     () => goToNextSection(),
 //     () => goToNextSection(),
 //     () => window.scrollBy({ top: -300, behavior: 'smooth' }),
-//     () => {scrollToNextChild(getRelatedSection());},
-//     () => {scrollToNextChild(getRelatedSection());},
-//     () => {scrollToNextChild(getRelatedSection());},
-//     () => {scrollToPreviousChild(getRelatedSection());},
-//     () => {scrollToPreviousChild(getRelatedSection());},
-//     () => {scrollToPreviousChild(getRelatedSection());},
-//     () => {scrollToNextChild(getRelatedSection());},
-//     () => {scrollToNextChild(getRelatedSection());},
-//     () => {scrollToNextChild(getRelatedSection());},
+//     () => {goToNextChild(getRelatedSection());},
+//     () => {goToNextChild(getRelatedSection());},
+//     () => {goToNextChild(getRelatedSection());},
+//     () => {goToPreviousChild(getRelatedSection());},
+//     () => {goToPreviousChild(getRelatedSection());},
+//     () => {goToPreviousChild(getRelatedSection());},
+//     () => {goToNextChild(getRelatedSection());},
+//     () => {goToNextChild(getRelatedSection());},
+//     () => {goToNextChild(getRelatedSection());},
 //     // () => {{
 //     //     const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
 //     //     clickableVideo.click();
@@ -274,5 +274,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (action === "PALM_OPEN") {
             startStopVideo();
         }
+        else if (action === "CINEMA_MODE") {
+            theaterMode();
+        }
+        else if (action === "VIDEO") {
+            muteVideo();
+        }
+        else if (action === "VOLUME_UP") {
+            volumeUp();
+        }
+        else if (action === "VOLUME_DOWN") {
+            volumeDown();
+        }
+        else if (action === "BIG_LEFT") {
+            goToPreviousSection();
+        }
+        else if (action === "BIG_RIGHT") {
+            goToNextSection();
+        }
+        else if (action === "SMALL_LEFT") {
+            goToPreviousChild();
+        }
+        else if (action === "SMALL_RIGHT") {
+            goToNextChild();
+        }
+        else if (action === "CLICK") {
+            const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
+            clickableVideo.click();
+        }
+        
     }
 });

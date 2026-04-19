@@ -3,11 +3,11 @@ import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
 ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
 
 const GESTURE_CONFIG = {
-    BUFFER_SIZE: 30,         // Twój model oczekuje 30 klatek
-    INFERENCE_INTERVAL: 10,  // Odpalamy model co 10 klatek (dla wydajności)
+    BUFFER_SIZE: 35,         // Twój model oczekuje 30 klatek
+    INFERENCE_INTERVAL: 1,  // Odpalamy model co 10 klatek (dla wydajności)
     CONFIDENCE_THRESHOLD: 0.85 // Minimalna pewność modelu (85%)
 };
-const CLASS_NAMES = {0: "PALM_OPEN", 1: "SWIPE_LEFT"}; // Zaktualizuj, jeśli masz więcej klas
+const CLASS_NAMES = {0: 'BIG_LEFT', 1: 'BIG_RIGHT', 2: 'CINEMA_MODE', 3: 'CLICK', 4: 'IDLE', 5: 'POINT_UP', 6: 'OPEN_PALM', 7: 'SITE_LEFT', 8: 'SMALL_LEFT', 9: 'SMALL_RIGHT', 10: 'SWIPE_LEFT', 11: 'SWIPE_RIGHT', 12: 'VIDEO', 13: 'VOLUME_DOWN', 14: 'VOLUME_UP'}; // Zaktualizuj, jeśli masz więcej klas
 
 // Zmienne globalne
 let handLandmarker = null;
@@ -17,6 +17,8 @@ let keypointsBuffer = [];
 let framesProcessed = 0;
 let isModelRunning = false;
 let onnxSession = null;
+let canvasElement = null;
+let canvasCtx = null;
 
 // ==========================================
 // INICJALIZACJA WSZYSTKIEGO
@@ -78,6 +80,8 @@ async function initAll() {
 
 async function startWebcam() {
     webcam = document.getElementById("webcam");
+    canvasElement = document.getElementById("output_canvas");
+    canvasCtx = canvasElement.getContext("2d");
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -100,23 +104,39 @@ async function startWebcam() {
 // GŁÓWNA PĘTLA KAMERY
 // ==========================================
 async function predictWebcam() {
-    console.log('dzialam predict')
     let startTimeMs = performance.now();
     if (webcam.currentTime !== lastVideoTime) {
         lastVideoTime = webcam.currentTime;
 
         // Zdobądź punkty z obrazu
         const results = handLandmarker.detectForVideo(webcam, startTimeMs);
-
-        console.log("landmarks ", results.landmarks);
-        console.log("landmarks length ", results.landmarks.length);
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        canvasCtx.drawImage(webcam, 0, 0, canvasElement.width, canvasElement.height);
         if (results.landmarks && results.landmarks.length > 0) {
+            for (const landmarks of results.landmarks) {
+                drawLandmarks(landmarks);
+            }
             handleNewFrame(results.landmarks);
         }
+        canvasCtx.restore();
     }
     window.requestAnimationFrame(predictWebcam);
 }
+function drawLandmarks(landmarks) {
+    // Draw dots for each keypoint
+    canvasCtx.fillStyle = "#00FF00"; // Green points
+    for (const point of landmarks) {
+        const x = point.x * canvasElement.width;
+        const y = point.y * canvasElement.height;
 
+        canvasCtx.beginPath();
+        canvasCtx.arc(x, y, 3, 0, 2 * Math.PI);
+        canvasCtx.fill();
+    }
+
+    // Logic to draw lines (connections) can be added here
+}
 // ==========================================
 // LOGIKA BUFORA I ONNX
 // ==========================================
