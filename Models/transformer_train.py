@@ -69,7 +69,7 @@ def train_with_validation(model, train_loader, val_loader, epochs=50, lr=0.001):
 
 
 if __name__ == "__main__":
-    dataset = JSONGestureDataset(root_dir=str(ROOT_DIR / "dataset"), target_frames=30)
+    dataset = JSONGestureDataset(root_dir=str(ROOT_DIR / "dataset"), target_frames=35)
 
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size

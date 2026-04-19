@@ -41,7 +41,6 @@ class PoseApp:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             keypoints = self.model.predict(rgb_frame)
-
             for (x, y) in keypoints:
                 cv2.circle(rgb_frame, (x, y), 5, (0, 255, 0), -1)
 
@@ -84,7 +83,9 @@ class PoseApp:
                 normalized_keypoints.append([0.0, 0.0])
 
             normalized_sequence.append(normalized_keypoints)
-
+        print('*' * 30)
+        print(normalized_sequence)
+        print('*' * 30 + '\n')
         tensor_data = torch.tensor(normalized_sequence, dtype=torch.float32)
         tensor_data = tensor_data.view(1, 35, 42).to(self.device)
 
@@ -95,7 +96,7 @@ class PoseApp:
 
             prob_value = max_prob.item()
 
-            if prob_value >= 0.80:
+            if prob_value >= 0.65:
                 action = self.class_names[predicted_idx.item()]
                 self.status_label.config(text=f"Action: {action} ({prob_value:.2f})", fg="green")
             else:
@@ -112,14 +113,18 @@ if __name__ == "__main__":
     root = tk.Tk()
     pose_model = MediaPipeModel()
 
-    class_names = {0: "PALM_OPEN", 1: "SWIPE_LEFT"}
+    class_names = {'BIG_LEFT': 0, 'BIG_RIGHT': 1, 'CINEMA_MODE': 2, 'CLICK': 3, 'IDLE': 4, 'POINT_UP': 5,
+                   'OPEN_PALM': 6, 'SITE_LEFT': 7, 'SMALL_LEFT': 8, 'SMALL_RIGHT': 9, 'SWIPE_LEFT': 10,
+                   'SWIPE_RIGHT': 11, 'VIDEO': 12, 'VOLUME_DOWN': 13, 'VOLUME_UP': 14}
+
+    idx_to_class = {v: k for k, v in class_names.items()}
 
     transformer = GestureTransformer(
         input_dim=42,
         d_model=128,
         nhead=8,
         num_layers=3,
-        num_classes=len(class_names)
+        num_classes=len(idx_to_class)
     )
 
     try:
@@ -127,6 +132,6 @@ if __name__ == "__main__":
     except FileNotFoundError:
         pass
 
-    app = PoseApp(root, pose_model, transformer, class_names)
+    app = PoseApp(root, pose_model, transformer, idx_to_class)
     root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()

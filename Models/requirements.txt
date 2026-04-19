@@ -5,3 +5,4 @@ Pillow
 tqdm
 onnx
 onnxscript
+onnxruntime
