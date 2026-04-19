@@ -1,9 +1,31 @@
 {
   "manifest_version": 3,
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+
   "name": "Hand Driven Internet",
   "version": "0.1",
   "description": "Gestures, camera, life quality",
-  "permissions": ["activeTab"],
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "offscreen",
+    "videoCapture"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [ "libs/*.wasm", "models/*.onnx", "models/*.task" ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -12,6 +34,10 @@
     {
       "matches": ["*://*.youtube.com/watch*"],
       "js": ["scripts/youtube/video.js"]
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["scripts/global.js"]
     }
   ]
 }

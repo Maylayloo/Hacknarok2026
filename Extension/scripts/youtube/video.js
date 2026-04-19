@@ -216,53 +216,63 @@ function scrollToPreviousChild(section) {
     }
 }
 
-const testActions = [
-    () => { theaterMode(); },
-    () => startStopVideo(),
-    () => muteVideo(),
-    () => startStopVideo(),
-    () => muteVideo(),
-    ...Array(2).fill(() => volumeUp()),
-    ...Array(2).fill(() => volumeDown()),
-    () => theaterMode(),
-    () => window.scrollTo({ top: getCommentsSection().scrollHeight, behavior: 'smooth' }),
-    () => window.scrollBy({ top: 200, behavior: 'smooth' }),
-    () => window.scrollBy({ top: 200, behavior: 'smooth' }),
-    () => window.scrollBy({ top: 300, behavior: 'smooth' }),
-    () => window.scrollBy({ top: 500, behavior: 'smooth' }),
-    ...Array(4).fill(() => window.scrollBy({ top: -200, behavior: 'smooth' })),
-    () => {getRelatedSection().scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-    });
-    },
-    () => goToNextSection(),
-    () => goToNextSection(),
-    () => goToNextSection(),
-    () => goToNextSection(),
-    () => goToPreviousSection(),
-    () => goToPreviousSection(),
-    () => goToPreviousSection(),
-    () => goToNextSection(),
-    () => goToNextSection(),
-    () => goToNextSection(),
-    () => window.scrollBy({ top: -300, behavior: 'smooth' }),
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToPreviousChild(getRelatedSection());},
-    () => {scrollToPreviousChild(getRelatedSection());},
-    () => {scrollToPreviousChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    () => {scrollToNextChild(getRelatedSection());},
-    // () => {{
-    //     const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
-    //     clickableVideo.click();
-    // }}
+// const testActions = [
+//     () => { theaterMode(); },
+//     () => startStopVideo(),
+//     () => muteVideo(),
+//     () => startStopVideo(),
+//     () => muteVideo(),
+//     ...Array(2).fill(() => volumeUp()),
+//     ...Array(2).fill(() => volumeDown()),
+//     () => theaterMode(),
+//     () => window.scrollTo({ top: getCommentsSection().scrollHeight, behavior: 'smooth' }),
+//     () => window.scrollBy({ top: 200, behavior: 'smooth' }),
+//     () => window.scrollBy({ top: 200, behavior: 'smooth' }),
+//     () => window.scrollBy({ top: 300, behavior: 'smooth' }),
+//     () => window.scrollBy({ top: 500, behavior: 'smooth' }),
+//     ...Array(4).fill(() => window.scrollBy({ top: -200, behavior: 'smooth' })),
+//     () => {getRelatedSection().scrollIntoView({
+//         behavior: 'smooth',
+//         block: 'start'
+//     });
+//     },
+//     () => goToNextSection(),
+//     () => goToNextSection(),
+//     () => goToNextSection(),
+//     () => goToNextSection(),
+//     () => goToPreviousSection(),
+//     () => goToPreviousSection(),
+//     () => goToPreviousSection(),
+//     () => goToNextSection(),
+//     () => goToNextSection(),
+//     () => goToNextSection(),
+//     () => window.scrollBy({ top: -300, behavior: 'smooth' }),
+//     () => {scrollToNextChild(getRelatedSection());},
+//     () => {scrollToNextChild(getRelatedSection());},
+//     () => {scrollToNextChild(getRelatedSection());},
+//     () => {scrollToPreviousChild(getRelatedSection());},
+//     () => {scrollToPreviousChild(getRelatedSection());},
+//     () => {scrollToPreviousChild(getRelatedSection());},
+//     () => {scrollToNextChild(getRelatedSection());},
+//     () => {scrollToNextChild(getRelatedSection());},
+//     () => {scrollToNextChild(getRelatedSection());},
+//     // () => {{
+//     //     const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
+//     //     clickableVideo.click();
+//     // }}
+//
+// ];
+// // yt-touch-feedback-shape
+// testActions.forEach((action, index) => {
+//     setTimeout(action, index * 600);
+// });
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "GESTURE_COMMAND") {
+        const action = request.action;
+        console.log("gesture", action);
 
-];
-// yt-touch-feedback-shape
-testActions.forEach((action, index) => {
-    setTimeout(action, index * 600);
+        if (action === "PALM_OPEN") {
+            startStopVideo();
+        }
+    }
 });
