@@ -3,12 +3,29 @@ import { FilesetResolver, HandLandmarker } from "./libs/vision_bundle.js";
 ort.env.wasm.wasmPaths = chrome.runtime.getURL("libs/");
 
 const GESTURE_CONFIG = {
-    BUFFER_SIZE: 35,         // Twój model oczekuje 30 klatek
+    BUFFER_SIZE: 13,         // Twój model oczekuje 30 klatek
     INFERENCE_INTERVAL: 1,  // Odpalamy model co 10 klatek (dla wydajności)
-    CONFIDENCE_THRESHOLD: 0.85, // Minimalna pewność modelu (85%)
-    ACTION_COOLDOWN_MS: 1500
+    CONFIDENCE_THRESHOLD: 0.80, // Minimalna pewność modelu (85%)
+    ACTION_COOLDOWN_MS: 750
 };
-const CLASS_NAMES = {0: 'BIG_LEFT', 1: 'BIG_RIGHT', 2: 'CINEMA_MODE', 3: 'CLICK', 4: 'IDLE', 5: 'POINT_UP', 6: 'OPEN_PALM', 7: 'SITE_LEFT', 8: 'SMALL_LEFT', 9: 'SMALL_RIGHT', 10: 'SWIPE_LEFT', 11: 'SWIPE_RIGHT', 12: 'VIDEO', 13: 'VOLUME_DOWN', 14: 'VOLUME_UP'}; // Zaktualizuj, jeśli masz więcej klas
+const CLASS_NAMES = {
+    0: 'BIG_LEFT',
+    1: 'CINEMA_MODE',
+    2: 'CLICK',
+    3: 'IDLE',
+    4: 'POINT_UP',
+    5: 'OPEN_PALM',
+    6: 'SCROLL_DOWN',
+    7: 'SCROLL_UP',
+    8: 'SITE_LEFT',
+    9: 'SMALL_LEFT',
+    10: 'SMALL_RIGHT',
+    11: 'SWIPE_LEFT',
+    12: 'SWIPE_RIGHT',
+    13: 'VIDEO',
+    14: 'VOLUME_DOWN',
+    15: 'VOLUME_UP'
+}
 
 // Zmienne globalne
 let handLandmarker = null;
@@ -104,7 +121,8 @@ async function startWebcam() {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 width: 640,
-                height: 480
+                height: 480,
+                frameRate: {ideal: 60, max: 60}
             }
         });
         webcam.srcObject = stream;
@@ -165,7 +183,10 @@ async function handleNewFrame(mediaPipeLandmarks) {
     framesProcessed++;
 
     // Zapisz [x, y] dla 21 punktów z pierwszej dłoni
-    const frameKeypoints = mediaPipeLandmarks[0].map(lm => [lm.x, lm.y]);
+    const frameKeypoints = mediaPipeLandmarks[0].map(lm => [
+        (1-lm.x) * webcam.videoWidth,
+        lm.y * webcam.videoHeight
+    ]);
     keypointsBuffer.push(frameKeypoints);
 
     // Pilnuj rozmiaru bufora (zawsze 30 klatek)

@@ -5,7 +5,17 @@
     <script type="module" src="offscreen.js"></script>
 </head>
 <body>
-    <video id="webcam" autoplay playsinline width="640" height="480"></video>
+    <video id="webcam" autoplay playsinline m width="640" height="480"></video>
     <canvas id="output_canvas" width="640" height="480"></canvas>
 </body>
+<style>
+    #webcam {
+        transform: scaleX(-1);
+        -webkit-transform: scaleX(-1);
+    }
+    #output_canvas {
+        transform: scaleX(-1);
+        -webkit-transform: scaleX(-1);
+    }
+</style>
 </html>

@@ -271,7 +271,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const action = request.action;
         console.log("gesture", action);
 
-        if (action === "PALM_OPEN") {
+        if (action === "OPEN_PALM") {
             startStopVideo();
         }
         else if (action === "CINEMA_MODE") {
@@ -293,15 +293,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             goToNextSection();
         }
         else if (action === "SMALL_LEFT") {
-            goToPreviousChild();
+            goToPreviousChild(getRelatedSection());
         }
         else if (action === "SMALL_RIGHT") {
-            goToNextChild();
+            goToNextChild(getRelatedSection());
         }
         else if (action === "CLICK") {
             const clickableVideo = highlighted_item.querySelector('yt-touch-feedback-shape');
             clickableVideo.click();
         }
-        
+        else if (action === "SCROLL_DOWN") {
+            window.scrollBy({ top: 300, behavior: 'smooth' })
+        }
+        else if (action === "SCROLL_UP") {
+            window.scrollBy({ top: -300, behavior: 'smooth' })
+        }
     }
 });
